@@ -1,0 +1,107 @@
+version: '2'
+
+services:
+  applications:
+    image: tianon/true
+    volumes:
+      - ${APP_PATH}:/var/www/html
+
+  nginx:
+    build:
+      context: ./nginx
+    image: ticketmonster/nginx
+    volumes_from:
+      - applications
+    ports:
+      - "${NGINX_HOST_HTTP_PORT}:80"
+    networks:
+      - ticketmonster_network
+
+  php:
+    build:
+      context: ./php
+      args:
+        - INSTALL_XDEBUG=${PHP_INSTALL_XDEBUG}
+        - INSTALL_PHPREDIS=${PHP_INSTALL_PHPREDIS}
+    image: ticketmonster/php
+    volumes_from:
+      - applications
+    networks:
+      - ticketmonster_network
+
+  node:
+    build:
+      context: ./node
+    image: ticketmonster/node
+    volumes_from:
+      - applications
+    networks:
+      - ticketmonster_network
+
+  mariadb:
+    build:
+      context: ./mariadb
+    image: ticketmonster/mariadb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "${MARIADB_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${MARIADB_DATABASE}"
+      MYSQL_USER: "${MARIADB_USER}"
+      MYSQL_PASSWORD: "${MARIADB_PASSWORD}"
+    networks:
+      - ticketmonster_network
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - ticketmonster_network
+
+  beanstalkd:
+    build:
+      context: ./beanstalkd
+    image: ticketmonster/beanstalkd
+    volumes:
+      - beanstalkd_data:/var/lib/beanstalkd/data
+    networks:
+      - ticketmonster_network
+
+  beanstalkd_console:
+    build:
+      context: ./beanstalkd_console
+    image: ticketmonster/beanstalkd_console
+    ports:
+      - "${BEANSTALKD_CONSOLE_PORT}:2080"
+    networks:
+      - ticketmonster_network
+
+  phpmyadmin:
+      image: phpmyadmin/phpmyadmin
+      environment:
+        PMA_HOST: "mariadb"
+        PMA_USER: "root"
+        PMA_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      ports:
+        - "${PMA_PORT}:80"
+      volumes:
+        - pma_session:/sessions
+      networks:
+        - ticketmonster_network
+
+networks:
+  ticketmonster_network:
+    driver: "bridge"
+
+volumes:
+  mariadb_data:
+    driver: "local"
+  redis_data:
+    driver: "local"
+  beanstalkd_data:
+    driver: "local"
+  pma_session:
+    driver: "local"
